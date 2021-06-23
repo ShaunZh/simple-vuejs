@@ -3,7 +3,7 @@
  * @Author: Hexon
  * @Date: 2021-06-23 15:22:30
  * @LastEditors: Hexon
- * @LastEditTime: 2021-06-23 16:24:53
+ * @LastEditTime: 2021-06-23 17:14:17
  */
 
 // 根据该课程https://www.vuemastery.com/courses/advanced-components/the-introduction 实现的代码
@@ -37,29 +37,32 @@ function watcher(myFunc) {
   target = null
 }
 
+let deps = new Map()
+
+
 // 数据劫持
 function reactive(data) {
-  // 通过defineProperty劫持data中的每个属性
   Object.keys(data).forEach(key => {
-    let internalVal = data[key]
-    // data中的每个属性都实例化一个Dep，用于收集依赖
-    const dep = new Dep()
-    Object.defineProperty(data, key, {
-      get() {
-        dep.depend()
-        return internalVal
-      },
-      set(newVal) {
-        internalVal = newVal
-        dep.notify()
-      }
-    })
+    deps.set(key, new Dep())
+  })
+  const goods_no_proxy = data;
+
+  // 使用proxy来劫持数据
+  return new Proxy(goods_no_proxy, {
+    get(target, prop) {
+      deps.get(prop).depend()
+      return target[prop]
+    },
+    set(target, prop, newVal) {
+      target[prop] = newVal
+      deps.get(prop).notify()
+      return true
+    }
   })
 }
 
-const goods = { price: 1, quantity: 20, total: 0 }
-
-reactive(goods)
+let goods = { price: 1, quantity: 20, total: 0 }
+goods = reactive(goods)
 
 // 添加一个watcher 
 watcher(() => {
@@ -71,5 +74,19 @@ goods.price = 10
 console.log('total = ', goods.total);
 goods.price = 100
 console.log('total = ', goods.total);
+
+// 如果是使用Object.defineProxy来劫持数据，那么无法检测到对象的新增属性，这也是为什么vue官方建议在data中将可能要用的属性全部定义出来，
+// 而不是在代码中去新增属性，这样新增的属性将不是响应式的，也就是到数据有更新时，无法通知用到的用到该数据的地方，如template中用到
+deps.set('discount', new Dep())
+goods.discount = -5
+
+let salePrice = 0
+
+watcher(() => {
+  salePrice = goods.price + goods.discount
+})
+console.log('salePrice = ', salePrice)
+goods.discount = -50
+console.log('salePrice = ', salePrice)
 
 
